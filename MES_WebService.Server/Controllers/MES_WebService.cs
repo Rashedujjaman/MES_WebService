@@ -7,11 +7,11 @@ namespace MES_WebService.Server.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class RMS_WebService : ControllerBase
+    public class MES_WebService : ControllerBase
     {
         private readonly ApplicationDbContext _context;
 
-        public RMS_WebService(ApplicationDbContext context)
+        public MES_WebService(ApplicationDbContext context)
         {
             _context = context;
         }
