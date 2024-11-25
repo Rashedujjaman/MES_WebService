@@ -7,6 +7,7 @@ namespace MES_WebService.Server.Data
 {
     public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
     {
-        public DbSet<Log> Logs { get; set; }
+       public DbSet<Log> Logs { get; set; }
     }
-}
+
+} 
