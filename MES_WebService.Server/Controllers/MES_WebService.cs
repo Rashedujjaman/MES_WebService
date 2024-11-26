@@ -30,11 +30,16 @@ namespace MES_WebService.Server.Controllers
                 // Declare a variable to store only newly generated the running numbers for the request requested.
                 var newRunningNumbers = new List<long>();
 
-                // Declare a variable to store the existing active logs for the received LotId.
+                // Declare a variable to store the logs that are being used from existing logs.
+                var existingLogs = new List<Log>();
+
+                // Declare a variable to store the existing logs that needs to be activated.
                 var existingActiveLogs = new List<Log>();
 
-                // Declare a variable to store the logs that are being used from existing logs.
-                var existingUsedLogs = new List<Log>();
+                // Declare a variable to store the existing logs that needs to be inactivated.
+                var existingInactiveLogs = new List<Log>();
+
+
 
                 // If the lot does not exist then directly proceed to get the requested number of running number.
                 if (existinglot == null)
@@ -48,40 +53,62 @@ namespace MES_WebService.Server.Controllers
                 
                 else
                 {
-                    // Get the existing logs for the received LotId from the Logs table
-                    // where delete flag is false.
-                    existingActiveLogs = await GetExistingActiveLogs(LotId, SequenceName);
+                    // Get all existing logs for the received LotId and SequenceName
+                    existingLogs = await GetExistingActiveLogs(LotId, SequenceName);
 
-                    // If the existing active logs are greater than or equal to
-                    // the requested running numbers, then get the running numbers from the existing logs
-                    if (existingActiveLogs.Count() >= RunNoCount)
+                    // If the existing active logs are greater than or equal to the requested running
+                    // numbers, then get all the required running numbers from the existing logs
+                    if (existingLogs.Count >= RunNoCount)
                     {
+                        existingActiveLogs.AddRange(existingLogs.Take(RunNoCount));
 
-                        //runningNumbers.AddRange(existingActiveLogs.Take(RunNoCount).Select(log => log.RunningNumber));
+                        existingInactiveLogs.AddRange(existingLogs.Skip(RunNoCount));
 
-                        existingUsedLogs.AddRange(existingActiveLogs.Take(RunNoCount));
+                        foreach( var log in existingActiveLogs)
+                        {
+                            log.DeleteFlag = false;
+                        }
 
-                        var existingInactiveLogs = existingActiveLogs.Skip(RunNoCount);
+                        if (existingActiveLogs.Count > 0)
+                        {
+                            // Update the existing logs with delete flag set to false
+                            _dbContext.Logs.UpdateRange(existingActiveLogs);
+                        }
+
 
                         foreach (var log in existingInactiveLogs)
                         {
                             log.DeleteFlag = true;
                         }
 
-                        // Update the excess existing active logs with delete flag set to true
-                        _dbContext.Logs.UpdateRange(existingInactiveLogs);
+                        if (existingInactiveLogs.Count > 0)
+                        {
+                            // Update the excess existing active logs with delete flag set to true
+                            _dbContext.Logs.UpdateRange(existingInactiveLogs);
+                        }
                     }
                     else
                     {
                         // Add all existing active logs to the result
-                        if(existingActiveLogs.Count() > 0)
+                        if(existingLogs.Count > 0)
                         {
-                            existingUsedLogs.AddRange(existingActiveLogs);
+                            existingActiveLogs.AddRange(existingLogs);
+
+                            foreach (var log in existingActiveLogs)
+                            {
+                                log.DeleteFlag = false;
+                            }
+
+                            if (existingActiveLogs.Count > 0)
+                            {
+                                // Update the existing logs with delete flag set to false
+                                _dbContext.Logs.UpdateRange(existingActiveLogs);
+                            }
                         }
 
-                        // If the existing active logs are less than the requested running numbers,
+                        // If the existing logs are less than the requested running numbers,
                         // then get the remaining running numbers from the sequence.
-                        var requiredRunNumbers = RunNoCount - existingUsedLogs.Count;
+                        var requiredRunNumbers = RunNoCount - existingActiveLogs.Count;
 
                         for (int i = 0; i < requiredRunNumbers; i++)
                         {
@@ -93,26 +120,29 @@ namespace MES_WebService.Server.Controllers
 
                 }
 
-                // Update the Log table with new running numbers
-                var newLogs = newRunningNumbers.Select((rn, index) => new Log
+                if (newRunningNumbers.Count > 0)
                 {
-                    SequenceName = SequenceName,
-                    RunningNumber = rn,
-                    RunningNumberIndex = index,
-                    ConvertedRunningNumber = "UN24"+rn.ToString().PadLeft(8, '0'),
-                    LotId = LotId,
-                    DeleteFlag = false,
-                    TimeStamp = DateTimeOffset.UtcNow,
-                }).ToList();
+                    // Update the Log table with new running numbers
+                    var newLogs = newRunningNumbers.Select((rn, index) => new Log
+                    {
+                        SequenceName = SequenceName,
+                        RunningNumber = rn,
+                        RunningNumberIndex = index,
+                        ConvertedRunningNumber = "UN24"+rn.ToString().PadLeft(8, '0'),
+                        LotId = LotId,
+                        DeleteFlag = false,
+                        TimeStamp = DateTimeOffset.UtcNow,
+                    }).ToList();
 
-                // Add the new logs to the database
-                _dbContext.Logs.AddRange(newLogs);
+                    // Add the new logs to the database
+                    _dbContext.Logs.AddRange(newLogs);
+                }
 
                 // Save changes for both updates and new inserts
                 await _dbContext.SaveChangesAsync();
 
 
-                runningNumbers.AddRange(existingUsedLogs.Select(log => log.RunningNumber));
+                runningNumbers.AddRange(existingActiveLogs.Select(log => log.RunningNumber));
                 runningNumbers.AddRange(newRunningNumbers);
                 // Return the requested running numbers
                 return Ok(runningNumbers);
@@ -135,7 +165,7 @@ namespace MES_WebService.Server.Controllers
         private async Task<List<Log>> GetExistingActiveLogs(string LotId, string SequenceName) 
         { 
             return await _dbContext.Logs
-                        .Where(log => log.LotId == LotId && log.SequenceName == SequenceName && log.DeleteFlag == false)
+                        .Where(log => log.LotId == LotId && log.SequenceName == SequenceName)
                         .ToListAsync();
         }
 
