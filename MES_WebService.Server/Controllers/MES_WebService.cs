@@ -28,22 +28,11 @@ namespace MES_WebService.Server.Controllers
             {
                 // Check if the lot id exist in the Logs table.
                 var existinglot = await _dbContext.Logs.FirstOrDefaultAsync(lot => lot.LotId == LotId && lot.SequenceName == SequenceName);
-
-                // Declare a variable to store all the running numbers requested.
                 var runningNumbers = new List<long>();
-                
-                // Declare a variable to store only newly generated the running numbers for the request requested.
                 var newRunningNumbers = new List<long>();
-
                 var generatedRunningNumber = new List<string>();
-
-                // Declare a variable to store the logs that are being used from existing logs.
                 var existingLogs = new List<Log>();
-
-                // Declare a variable to store the existing logs that needs to be activated.
                 var existingActiveLogs = new List<Log>();
-
-                // Declare a variable to store the existing logs that needs to be inactivated.
                 var existingInactiveLogs = new List<Log>();
 
 
