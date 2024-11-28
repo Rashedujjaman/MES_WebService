@@ -2,6 +2,9 @@
 using MES_WebService.Server.Data;
 using MES_WebService.Server.Models;
 using Microsoft.EntityFrameworkCore;
+using Oracle.ManagedDataAccess.Client;
+using System.Configuration;
+//using System.Configuration;
 
 namespace MES_WebService.Server.Controllers
 {
@@ -10,10 +13,12 @@ namespace MES_WebService.Server.Controllers
     public class MES_WebService : ControllerBase
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly IConfiguration _configuration;
 
-        public MES_WebService(ApplicationDbContext dbContext)
+        public MES_WebService(ApplicationDbContext dbContext, IConfiguration configuration)
         {
             _dbContext = dbContext;
+            _configuration = configuration;
         }
 
         [HttpGet("GetRunningNumbers")]
@@ -29,6 +34,8 @@ namespace MES_WebService.Server.Controllers
                 
                 // Declare a variable to store only newly generated the running numbers for the request requested.
                 var newRunningNumbers = new List<long>();
+
+                var generatedRunningNumber = new List<string>();
 
                 // Declare a variable to store the logs that are being used from existing logs.
                 var existingLogs = new List<Log>();
@@ -48,6 +55,9 @@ namespace MES_WebService.Server.Controllers
                     {
                         var nextValue = await GetNextSequenceValueAsync(SequenceName);
                         newRunningNumbers.Add(nextValue);
+
+                        var generatedNumber = await GenerateRunningNumber("USP", LotId, nextValue.ToString());
+                        generatedRunningNumber.Add(generatedNumber);
                     }
                 }
                 
@@ -115,6 +125,10 @@ namespace MES_WebService.Server.Controllers
                             // Get the remaining running numbers from the sequence
                             var nextValue = await GetNextSequenceValueAsync(SequenceName);
                             newRunningNumbers.Add(nextValue);
+
+
+                            var generatedNumber = await GenerateRunningNumber("USP", LotId, nextValue.ToString());
+                            generatedRunningNumber.Add(generatedNumber);
                         }
                     }
 
@@ -197,6 +211,46 @@ namespace MES_WebService.Server.Controllers
                 {
                     // Log the exception or handle it as needed
                     throw new InvalidOperationException(ex.Message);
+                }
+            }
+        }
+
+        public async Task<string> GenerateRunningNumber(string factory, string lotId, string runNo)
+        {
+            // Get the Oracle connection string from the configuration
+            var connectionString = _configuration.GetConnectionString("OracleConnection");
+
+            using (var connection = new OracleConnection(connectionString))
+            {
+                try
+                {
+                    // Open the Oracle connection
+                    await connection.OpenAsync();
+
+                    // Define the Oracle command to call the database function
+                    var commandText = "SELECT WEBSVC_WBD_RUNNO(:factory, :lotId, :runNo) FROM dual";
+
+                    using var command = new OracleCommand(commandText, connection);
+                    
+                    // Add parameters for the Oracle function
+                    command.Parameters.Add("factory", OracleDbType.Varchar2).Value = factory;
+                    command.Parameters.Add("lotId", OracleDbType.Varchar2).Value = lotId;
+                    command.Parameters.Add("runNo", OracleDbType.Varchar2).Value = runNo;
+
+                    // Execute the command and fetch the result
+                    var result = await command.ExecuteScalarAsync();
+                    return result?.ToString();
+                    
+                }
+                catch (Exception ex)
+                {
+                    // Handle errors and throw an exception with context
+                    throw new ApplicationException($"Error executing Oracle command: {ex.Message}", ex);
+                }
+                finally
+                {
+                    // Ensure the connection is closed
+                    await connection.CloseAsync();
                 }
             }
         }
