@@ -4,7 +4,9 @@ using MES_WebService.Server.Models;
 using Microsoft.EntityFrameworkCore;
 using Oracle.ManagedDataAccess.Client;
 using System.Configuration;
-//using System.Configuration;
+using System.Data;
+using System.Text;
+
 
 namespace MES_WebService.Server.Controllers
 {
@@ -56,8 +58,8 @@ namespace MES_WebService.Server.Controllers
                         var nextValue = await GetNextSequenceValueAsync(SequenceName);
                         newRunningNumbers.Add(nextValue);
 
-                        var generatedNumber = await GenerateRunningNumber("USP", LotId, nextValue.ToString());
-                        generatedRunningNumber.Add(generatedNumber);
+                        //var generatedNumber = await GenerateRunningNumber("USP", LotId, nextValue.ToString());
+                        //generatedRunningNumber.Add(generatedNumber);
                     }
                 }
                 
@@ -127,8 +129,40 @@ namespace MES_WebService.Server.Controllers
                             newRunningNumbers.Add(nextValue);
 
 
-                            var generatedNumber = await GenerateRunningNumber("USP", LotId, nextValue.ToString());
-                            generatedRunningNumber.Add(generatedNumber);
+                            //var generatedNumber = await GenerateRunningNumber("USP", LotId, nextValue.ToString());
+                            //generatedRunningNumber.Add(generatedNumber);
+
+                            var connectionString = _configuration.GetConnectionString("OracleConnection");
+
+                            OracleConnection conn = new OracleConnection(connectionString);
+                            try
+                            {
+
+                                conn.Open();
+
+                                OracleCommand cmd = new OracleCommand("WEBSVC_WBD_RUNNO(:p_FACTORY, :p_LOT_ID, :p_RUNNNO)", conn);
+                                cmd.CommandType = CommandType.StoredProcedure;
+                                cmd.Parameters.Add(new OracleParameter("p_FACTORY", OracleDbType.Varchar2, ParameterDirection.Input).Value = "USP");
+                                cmd.Parameters.Add(new OracleParameter("p_LOT_ID", OracleDbType.Varchar2, ParameterDirection.Input)).Value = LotId;
+                                cmd.Parameters.Add(new OracleParameter("p_RUNNNO", OracleDbType.Varchar2, ParameterDirection.Input)).Value = nextValue;
+                                cmd.Parameters.Add(new OracleParameter("return_value", OracleDbType.Varchar2, ParameterDirection.ReturnValue));
+
+
+                                cmd.ExecuteNonQuery();
+
+                                string result = cmd.Parameters["return_value"].Value.ToString();
+                                generatedRunningNumber.Add(result);
+                                //return result;
+                            }
+                            catch (Exception ex)
+                            {
+                                throw new ApplicationException($"Error executing Oracle command: {ex.Message}", ex);
+                            }
+                            finally
+                            {
+                                // Ensure the connection is closed
+                                await conn.CloseAsync();
+                            }
                         }
                     }
 
@@ -215,44 +249,76 @@ namespace MES_WebService.Server.Controllers
             }
         }
 
-        public async Task<string> GenerateRunningNumber(string factory, string lotId, string runNo)
-        {
+        //public async Task<string> GenerateRunningNumber(string factory, string lotId, string runNo)
+        //{
             // Get the Oracle connection string from the configuration
-            var connectionString = _configuration.GetConnectionString("OracleConnection");
+            //var connectionString = _configuration.GetConnectionString("OracleConnection");
 
-            using (var connection = new OracleConnection(connectionString))
-            {
-                try
-                {
-                    // Open the Oracle connection
-                    await connection.OpenAsync();
+            //OracleConnection conn = new OracleConnection(connectionString);
+            //try
+            //{
+ 
+            //    conn.Open();
 
-                    // Define the Oracle command to call the database function
-                    var commandText = "SELECT WEBSVC_WBD_RUNNO(:factory, :lotId, :runNo) FROM dual";
+            //    OracleCommand cmd = new OracleCommand("WEBSVC_WBD_RUNNO(:p_FACTORY, :p_LOT_ID, :p_RUNNNO)", conn);
+            //    cmd.CommandType = CommandType.StoredProcedure;
+            //    cmd.Parameters.Add(new OracleParameter("p_FACTORY", OracleDbType.Varchar2, ParameterDirection.Input).Value = factory);
+            //    cmd.Parameters.Add(new OracleParameter("p_LOT_ID", OracleDbType.Varchar2, ParameterDirection.Input)).Value = lotId;
+            //    cmd.Parameters.Add(new OracleParameter("p_RUNNNO", OracleDbType.Varchar2, ParameterDirection.Input)).Value = runNo;
+            //    cmd.Parameters.Add(new OracleParameter("return_value", OracleDbType.Varchar2, ParameterDirection.ReturnValue));
 
-                    using var command = new OracleCommand(commandText, connection);
-                    
-                    // Add parameters for the Oracle function
-                    command.Parameters.Add("factory", OracleDbType.Varchar2).Value = factory;
-                    command.Parameters.Add("lotId", OracleDbType.Varchar2).Value = lotId;
-                    command.Parameters.Add("runNo", OracleDbType.Varchar2).Value = runNo;
 
-                    // Execute the command and fetch the result
-                    var result = await command.ExecuteScalarAsync();
-                    return result?.ToString();
-                    
-                }
-                catch (Exception ex)
-                {
-                    // Handle errors and throw an exception with context
-                    throw new ApplicationException($"Error executing Oracle command: {ex.Message}", ex);
-                }
-                finally
-                {
-                    // Ensure the connection is closed
-                    await connection.CloseAsync();
-                }
-            }
-        }
+            //    cmd.ExecuteNonQuery();
+
+            //    string result = cmd.Parameters["return_value"].Value.ToString();
+
+            //    return result;
+            //} catch (Exception ex)
+            //{
+            //    throw new ApplicationException($"Error executing Oracle command: {ex.Message}", ex);
+            //}
+            //finally
+            //{
+            //    // Ensure the connection is closed
+            //    await conn.CloseAsync();
+            //}
+
+
+
+
+            //using (var connection = new OracleConnection(connectionString))
+            //{
+            //    try
+            //    {
+            //        // Open the Oracle connection
+            //        await connection.OpenAsync();
+
+            //        // Define the Oracle command to call the database function
+            //        var commandText = "SELECT WEBSVC_WBD_RUNNO(:factory, :lotId, :runNo) FROM dual";
+
+            //        using var command = new OracleCommand(commandText, connection);
+
+            //        // Add parameters for the Oracle function
+            //        command.Parameters.Add("factory", OracleDbType.Varchar2).Value = factory;
+            //        command.Parameters.Add("lotId", OracleDbType.Varchar2).Value = lotId;
+            //        command.Parameters.Add("runNo", OracleDbType.Varchar2).Value = runNo;
+
+            //        // Execute the command and fetch the result
+            //        var result = await command.ExecuteScalarAsync();
+            //        return result?.ToString();
+
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        // Handle errors and throw an exception with context
+            //        throw new ApplicationException($"Error executing Oracle command: {ex.Message}", ex);
+            //    }
+            //    finally
+            //    {
+            //        // Ensure the connection is closed
+            //        await connection.CloseAsync();
+            //    }
+            //}
+        //}
     }
 }
