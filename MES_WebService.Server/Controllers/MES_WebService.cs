@@ -30,7 +30,9 @@ namespace MES_WebService.Server.Controllers
                 var existinglot = await _dbContext.Logs.FirstOrDefaultAsync(lot => lot.LotId == LotId && lot.SequenceName == SequenceName);
                 var runningNumbers = new List<long>();
                 var newRunningNumbers = new List<long>();
-                var generatedRunningNumber = new List<string>();
+
+                var generatedRunningNumbers = new List<string>();
+
                 var existingLogs = new List<Log>();
                 var existingActiveLogs = new List<Log>();
                 var existingInactiveLogs = new List<Log>();
@@ -46,7 +48,7 @@ namespace MES_WebService.Server.Controllers
                         newRunningNumbers.Add(nextValue);
 
                         var generatedNumber = await GenerateRunningNumber(Factory, LotId, nextValue);
-                        generatedRunningNumber.Add(generatedNumber);
+                        generatedRunningNumbers.Add(generatedNumber);
                     }
                 }
                 
@@ -117,11 +119,27 @@ namespace MES_WebService.Server.Controllers
 
 
                             var generatedNumber = await GenerateRunningNumber(Factory, LotId, nextValue);
-                            generatedRunningNumber.Add(generatedNumber);
+                            generatedRunningNumbers.Add(generatedNumber);
                         }
                     }
 
                 }
+
+                // Check for duplicates between generated running numbers and existing logs
+                var duplicateGeneratedRunningNumbers = generatedRunningNumbers
+                    .Where(grn => existingLogs.Any(log => log.GeneratedRunningNumber == grn))
+                    .ToList();
+
+                // If duplicates exist, return an error
+                if (duplicateGeneratedRunningNumbers.Count > 0)
+                {
+                    return BadRequest(new
+                    {
+                        message = "Duplicate running numbers found.",
+                        duplicates = duplicateGeneratedRunningNumbers
+                    });
+                }
+
 
                 var newLogs = new List<Log>();
 
@@ -133,7 +151,7 @@ namespace MES_WebService.Server.Controllers
                     {
                         SequenceName = SequenceName,
                         RunningNumber = rn,
-                        RunningNumberIndex = index,
+                        RunningNumberIndex = 0,
                         GeneratedRunningNumber = "",
                         LotId = LotId,
                         DeleteFlag = false,
@@ -142,7 +160,12 @@ namespace MES_WebService.Server.Controllers
 
                     for ( int i=0; i<newLogs.Count; i++)
                     {
-                        newLogs[i].GeneratedRunningNumber = generatedRunningNumber[i];
+                        newLogs[i].GeneratedRunningNumber = generatedRunningNumbers[i];
+                    }
+
+                    for (int i = 0; i < newLogs.Count; i++)
+                    {
+                        newLogs[i].RunningNumberIndex = existingActiveLogs.Count + i + 1;
                     }
 
                     // Add the new logs to the database
@@ -162,8 +185,8 @@ namespace MES_WebService.Server.Controllers
                 totalRunningNumLogs.AddRange(existingActiveLogs);
                 totalRunningNumLogs.AddRange(newLogs);
                 //// Return the requested running numbers with detailed logs
-                var generatedRunningNumbers = totalRunningNumLogs.Select(log => log.GeneratedRunningNumber).ToList();
-                return Ok(generatedRunningNumbers);
+                var totalGeneratedRunningNumbers = totalRunningNumLogs.Select(log => log.GeneratedRunningNumber).ToList();
+                return Ok(totalGeneratedRunningNumbers);
 
 
             }
