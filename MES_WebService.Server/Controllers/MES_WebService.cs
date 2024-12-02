@@ -4,6 +4,9 @@ using MES_WebService.Server.Models;
 using Microsoft.EntityFrameworkCore;
 using Oracle.ManagedDataAccess.Client;
 using System.Data;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using Microsoft.AspNetCore.Http.HttpResults;
+using System.Data.Common;
 
 
 namespace MES_WebService.Server.Controllers
@@ -172,18 +175,12 @@ namespace MES_WebService.Server.Controllers
                     _dbContext.Logs.AddRange(newLogs);
                 }
 
-                // Save changes for both updates and new inserts
                 await _dbContext.SaveChangesAsync();
-
-
-                //runningNumbers.AddRange(existingActiveLogs.Select(log => log.RunningNumber));
-                //runningNumbers.AddRange(newRunningNumbers);
-                // Return the requested running numbers
-                //return Ok(generatedRunningNumber);
 
                 var totalRunningNumLogs = new List<Log>();
                 totalRunningNumLogs.AddRange(existingActiveLogs);
                 totalRunningNumLogs.AddRange(newLogs);
+
                 //// Return the requested running numbers with detailed logs
                 var totalGeneratedRunningNumbers = totalRunningNumLogs.Select(log => log.GeneratedRunningNumber).ToList();
                 return Ok(totalGeneratedRunningNumbers);
@@ -196,7 +193,7 @@ namespace MES_WebService.Server.Controllers
             }
         }
 
-        // Method to get existing active logs
+
         private async Task<List<Log>> GetExistingActiveLogs(string LotId, string SequenceName) 
         { 
             return await _dbContext.Logs
@@ -205,34 +202,55 @@ namespace MES_WebService.Server.Controllers
         }
 
 
-        // Method to get the next value from the sequence
         private async Task<long> GetNextSequenceValueAsync(string SequenceName)
         {
-            // Get the database connection
             var connection = _dbContext.Database.GetDbConnection();
-
-            // Open the connection
             await connection.OpenAsync();
 
-            using (var command = connection.CreateCommand())
+            try
             {
-                try
+                using (var command = connection.CreateCommand())
                 {
-                    // Create a SQL query to get next value of the sequence
+                    var sequenceExists = await CheckSequenceExistsAsync(SequenceName, connection);
+
+                    if (!sequenceExists)
+                    {
+                        await CreateSequenceAsync(SequenceName, connection);
+                    }
+
                     command.CommandText = $"SELECT NEXT VALUE FOR dbo.{SequenceName};";
 
-                    // Execute the query
                     var result = await command.ExecuteScalarAsync();
-                    await connection.CloseAsync();
 
-                    // Return the value
                     return Convert.ToInt64(result);
                 }
-                catch (Exception ex)
-                {
-                    // Log the exception or handle it as needed
-                    throw new InvalidOperationException(ex.Message);
-                }
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(ex.Message);
+            }
+            finally
+            {
+                await connection.CloseAsync();
+            }
+        }
+
+        private async Task<bool> CheckSequenceExistsAsync(string SequenceName, DbConnection connection)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = $"SELECT COUNT(*) FROM sys.sequences WHERE name = '{SequenceName}'";
+                var count = (int)await command.ExecuteScalarAsync();
+                return count > 0;
+            }
+        }
+
+        private async Task CreateSequenceAsync(string SequenceName, DbConnection connection)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = $"CREATE SEQUENCE {SequenceName} START WITH 1 INCREMENT BY 1;";
+                await command.ExecuteNonQueryAsync();
             }
         }
 
@@ -243,21 +261,17 @@ namespace MES_WebService.Server.Controllers
             OracleConnection conn = new OracleConnection(connectionString);
             try
             {
-                // Open the Oracle connection
                 await conn.OpenAsync();
 
-                // Define the Oracle command to call the database function
                 var commandText = "SELECT WEBSVC_WBD_RUNNO(:p_FACTORY, :p_LOT_ID, :p_RUNNO) FROM dual";
                 //var commandText = "SELECT WEBSVC_WBD_RUNNO('UAT', '2423000870008', '00001') FROM dual";
 
                 using var command = new OracleCommand(commandText, conn);
 
-                // Add parameters for the Oracle function
                 command.Parameters.Add("p_FACTORY", OracleDbType.Varchar2).Value = factory;
                 command.Parameters.Add("p_LOT_ID", OracleDbType.Varchar2).Value = lotId;
                 command.Parameters.Add("p_RUNNO", OracleDbType.Varchar2).Value = runnNo.ToString().PadLeft(5, '0');
 
-                // Execute the command and fetch the result
                 var result = await command.ExecuteScalarAsync();
 
                 return result.ToString();
@@ -268,7 +282,6 @@ namespace MES_WebService.Server.Controllers
             }
             finally
             {
-                // Ensure the connection is closed
                 await conn.CloseAsync();
             }
         }
