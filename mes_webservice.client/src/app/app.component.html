@@ -1,24 +1,46 @@
-﻿<h1 id="tableLabel">Weather forecast</h1>
+<h1 id="tableLabel">MES Running Number Generator</h1>
 
-<p>This component demonstrates fetching data from the server.</p>
+<p>This component demonstrates the structure of MES Cloud Web Service</p>
+<p><strong>Api URL : </strong>https://10.11.102.243:637/api/MES_WebService/GetRunningNumbers?SequenceName=SequenceABCD&RunNoCount=5&LotId=2423000870008&StepNo=1&Factory=UAT&IsUnique=true</p>
 
-<p *ngIf="!forecasts"><em>Loading... Please refresh once the ASP.NET backend has started. See <a href="https://aka.ms/jspsintegrationangular">https://aka.ms/jspsintegrationangular</a> for more details.</em></p>
-
-<table *ngIf="forecasts">
+<table>
     <thead>
         <tr>
-            <th>Date</th>
-            <th>Temp. (C)</th>
-            <th>Temp. (F)</th>
-            <th>Summary</th>
+            <th>Parameters</th>
+            <th>DataType</th>
+            <th>Sample Data</th>
         </tr>
     </thead>
     <tbody>
-        <tr *ngFor="let forecast of forecasts">
-            <td>{{ forecast.date }}</td>
-            <td>{{ forecast.temperatureC }}</td>
-            <td>{{ forecast.temperatureF }}</td>
-            <td>{{ forecast.summary }}</td>
-        </tr>
+      <tr>
+        <td>SequenceName</td>
+        <td>String</td>
+        <td>SequenceABCD</td>
+      </tr>
+      <tr>
+        <td>RunNoCount</td>
+        <td>Integer</td>
+        <td>100</td>
+      </tr>
+      <tr>
+        <td>LotId</td>
+        <td>String</td>
+        <td>2423000870008</td>
+      </tr>
+      <tr>
+        <td>StepNo</td>
+        <td>Integer</td>
+        <td>1</td>
+      </tr>
+      <tr>
+        <td>Factory</td>
+        <td>String</td>
+        <td>UAT</td>
+      </tr>
+      <tr>
+        <td>IsUnique</td>
+        <td>Boolean</td>
+        <td>True</td>
+      </tr>
     </tbody>
 </table>
