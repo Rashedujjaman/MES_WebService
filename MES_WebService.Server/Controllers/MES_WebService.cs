@@ -2,10 +2,10 @@
 using MES_WebService.Server.Data;
 using MES_WebService.Server.Models;
 using Microsoft.EntityFrameworkCore;
-using Oracle.ManagedDataAccess.Client;
 using System.Data;
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore.Storage;
+
 
 
 namespace MES_WebService.Server.Controllers
@@ -15,14 +15,16 @@ namespace MES_WebService.Server.Controllers
     public class MES_WebService : ControllerBase
     {
         private readonly ApplicationDbContext _dbContext;
-        private readonly IConfiguration _configuration;
+        private readonly IRunningNumberService _runningNumberService;
 
-        public MES_WebService(ApplicationDbContext dbContext, IConfiguration configuration)
+        public MES_WebService(ApplicationDbContext dbContext, IRunningNumberService runningNumberService)
         {
             _dbContext = dbContext;
-            _configuration = configuration;
+            _runningNumberService = runningNumberService;
         }
 
+
+        #region Main Function
         [HttpGet("GetRunningNumbers")]
         public async Task<IActionResult> GetRunningNumbers(string SequenceName, int RunNoCount, string LotId, int StepNo, string Factory, bool IsUnique)
         {
@@ -55,7 +57,7 @@ namespace MES_WebService.Server.Controllers
                         var nextValue = await GetNextSequenceValueAsync(SequenceName, StepNo);
                         if (nextValue == 0)
                         {
-                            return BadRequest($"Invalid Object Name : {SequenceName}");
+                            return BadRequest($"Invalid Sequence Name : {SequenceName}");
                         }
                         else if (nextValue == -1)
                         {
@@ -63,7 +65,7 @@ namespace MES_WebService.Server.Controllers
                         }
                         newRunningNumbers.Add(nextValue);
 
-                        var generatedNumber = await GenerateRunningNumber(Factory, LotId, nextValue);
+                        var generatedNumber = await _runningNumberService.GenerateRunningNumberAsync(Factory, LotId, nextValue);
                         generatedRunningNumbers.Add(generatedNumber);
                     }
                 }
@@ -127,18 +129,20 @@ namespace MES_WebService.Server.Controllers
                         for (int i = 0; i < requiredRunNumbers; i++)
                         {
                             var nextValue = await GetNextSequenceValueAsync(SequenceName, StepNo);
+
                             if (nextValue == 0)
                             {
-                                return BadRequest($"Invalid Object Name : {SequenceName}");
+                                return BadRequest($"Invalid Sequence Name : {SequenceName}");
                             }
                             else if (nextValue == -1)
                             {
                                 return BadRequest($"Invalid Step No : {StepNo}");
                             }
+
                             newRunningNumbers.Add(nextValue);
 
 
-                            var generatedNumber = await GenerateRunningNumber(Factory, LotId, nextValue);
+                            var generatedNumber = await _runningNumberService.GenerateRunningNumberAsync(Factory, LotId, nextValue);
                             generatedRunningNumbers.Add(generatedNumber);
                         }
                     }
@@ -222,7 +226,17 @@ namespace MES_WebService.Server.Controllers
                 {
                     await transaction.RollbackAsync();
                 }
-                return BadRequest(new { message = ex.Message});
+
+                if (ex is HttpRequestException httpEx)
+                {
+                    return BadRequest(new { message = "Network error while connecting to the cloud. Please check your internet connection.", details = httpEx.Message });
+                }
+                else if (ex is ApplicationException appEx)
+                {
+                    return BadRequest(new { message = appEx.Message, details = appEx.InnerException?.Message });
+                }
+
+                return BadRequest(new { message = "An unexpected error occured", details = ex.Message});
             }
         }
 
@@ -233,8 +247,9 @@ namespace MES_WebService.Server.Controllers
                         .Where(log => log.LotId == LotId && log.SequenceName == SequenceName)
                         .ToListAsync();
         }
+        #endregion
 
-
+        #region Sequence Helper Function
         private async Task<long> GetNextSequenceValueAsync(string SequenceName, int StepNo)
         {
             var connection = _dbContext.Database.GetDbConnection();
@@ -315,37 +330,6 @@ namespace MES_WebService.Server.Controllers
                 await command.ExecuteNonQueryAsync();
             }
         }
-
-        private async Task<string> GenerateRunningNumber(string factory, string lotId, long runnNo)
-        {
-            var connectionString = _configuration.GetConnectionString("OracleConnection");
-
-            OracleConnection conn = new OracleConnection(connectionString);
-            try
-            {
-                await conn.OpenAsync();
-
-                var commandText = "SELECT WEBSVC_WBD_RUNNO(:p_FACTORY, :p_LOT_ID, :p_RUNNO) FROM dual";
-                //var commandText = "SELECT WEBSVC_WBD_RUNNO('UAT', '2423000870008', '00001') FROM dual";
-
-                using var command = new OracleCommand(commandText, conn);
-
-                command.Parameters.Add("p_FACTORY", OracleDbType.Varchar2).Value = factory;
-                command.Parameters.Add("p_LOT_ID", OracleDbType.Varchar2).Value = lotId;
-                command.Parameters.Add("p_RUNNO", OracleDbType.Varchar2).Value = runnNo.ToString().PadLeft(5, '0');
-
-                var result = await command.ExecuteScalarAsync();
-
-                return result.ToString();
-            }
-            catch (Exception ex)
-            {
-                throw new ApplicationException($"Error executing Oracle command: {ex.Message}", ex);
-            }
-            finally
-            {
-                await conn.CloseAsync();
-            }
-        }
+        #endregion
     }
 }
