@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\mes_webservice.client\mes_webservice.client.esproj">
+    <ProjectReference Include="..\mes_webservice.client\MES_WebService.Client.esproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
   </ItemGroup>

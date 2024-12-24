@@ -1,11 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.12.35514.174 d17.12
+VisualStudioVersion = 17.12.35514.174
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MES_WebService.Server", "MES_WebService.Server\MES_WebService.Server.csproj", "{87EAC48A-10B7-4CFE-BA57-C2A033EDB648}"
 EndProject
-Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "mes_webservice.client", "mes_webservice.client\mes_webservice.client.esproj", "{BDBD4927-C51D-4961-81FA-D9D8D10AFE7D}"
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "MES_WebService.Client", "mes_webservice.client\MES_WebService.Client.esproj", "{BDBD4927-C51D-4961-81FA-D9D8D10AFE7D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
